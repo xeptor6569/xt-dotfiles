@@ -41,7 +41,7 @@ choose() {  # choose "Question" default opt1 opt2 ... -> echoes first word of se
 }
 append_line() {  # append_line <file>  [--prepend]
   local f="$1" line="$2"
-  grep -qF -- "$line" "$f" 2>/dev/null && return 0
+  grep -qF -- "${line##*$'\n'}" "$f" 2>/dev/null && return 0
   if [[ ${3:-} == --prepend ]]; then
     run bash -c "printf '%s\n\n' '$line' | cat - '$f' > '$f.tmp' && mv '$f.tmp' '$f'"
   else
@@ -113,7 +113,8 @@ fi
 wire() {
   local src="$1" dst="$2" line="$3" pre="${4:-}"
   if [[ -L $dst && $(readlink "$dst") == "$src" ]]; then log "$dst already linked"; return; fi
-  if [[ -f $dst ]] && grep -qF -- "$line" "$dst"; then log "$dst already includes dotfiles"; return; fi
+  # match on the last line only: multi-line includes start with generic headers like [include]
+  if [[ -f $dst ]] && grep -qF -- "${line##*$'\n'}" "$dst"; then log "$dst already includes dotfiles"; return; fi
   local mode="$RCMODE"
   if [[ -z $mode ]]; then
     if [[ -s $dst ]]; then
@@ -125,7 +126,9 @@ wire() {
     else mode=link; fi
   fi
   case "$mode" in
-    append) [[ -f $dst ]] || run touch "$dst"; append_line "$dst" "$line" $pre; log "appended include to $dst" ;;
+    append) [[ -f $dst ]] || run touch "$dst"
+            [[ -s $dst ]] && { run cp -p "$dst" "$dst.bak.$(date +%s)"; log "backup: $dst.bak.*"; }
+            append_line "$dst" "$line" $pre; log "appended include to $dst" ;;
     link)   [[ -e $dst && ! -L $dst ]] && { run mv "$dst" "$dst.bak.$(date +%s)"; warn "backed up $dst"; }
             run ln -sfn "$src" "$dst"; log "linked $dst" ;;
     *)      warn "left $dst alone" ;;
@@ -147,18 +150,20 @@ fi
 ask "Configure bash too (fallback / root shells)?" y && wire "$DOTFILES/bashrc" "$HOME/.bashrc" "$SRC_LINE"
 
 if ask "Configure tmux?" y; then
-  wire "$DOTFILES/tmux.conf" "$HOME/.tmux.conf" 'source-file ~/.xt-dotfiles/tmux.conf'
+  # prepended in append mode so your existing settings load later and win
+  wire "$DOTFILES/tmux.conf" "$HOME/.tmux.conf" 'source-file ~/.xt-dotfiles/tmux.conf' --prepend
 fi
 
 if ask "Configure git (delta pager, aliases)?" y; then
+  # prepended in append mode (later git config wins), so your existing settings override ours
   wire "$DOTFILES/gitconfig" "$HOME/.gitconfig" '[include]
-	path = ~/.xt-dotfiles/gitconfig'
+	path = ~/.xt-dotfiles/gitconfig' --prepend
   # identity lives outside the repo
   if [[ ! -f $HOME/.gitconfig.local ]]; then
     name="$(git config --global user.name 2>/dev/null || true)"; email="$(git config --global user.email 2>/dev/null || true)"
     if (( ! YES )); then
-      read -rp "git user.name  [${name:-skip}]: " n </dev/tty; name="${n:-$name}"
-      read -rp "git user.email [${email:-skip}]: " e </dev/tty; email="${e:-$email}"
+      read -rp "git user.name  [${name:-none}] (Enter to keep): " n </dev/tty; name="${n:-$name}"
+      read -rp "git user.email [${email:-none}] (Enter to keep): " e </dev/tty; email="${e:-$email}"
     fi
     if [[ -n $name && -n $email ]]; then
       run bash -c "printf '[user]\n\tname = %s\n\temail = %s\n' '$name' '$email' > '$HOME/.gitconfig.local'"
@@ -168,7 +173,10 @@ fi
 
 if ask "Configure ssh client (multiplexing, keepalive)?" y; then
   run install -d -m 700 "$HOME/.ssh" "$HOME/.ssh/config.d"
-  wire "$DOTFILES/ssh_config" "$HOME/.ssh/config" 'Include ~/.xt-dotfiles/ssh_config' --prepend
+  # appended (not prepended) in append mode: ssh uses the FIRST value found, so your own Host blocks win.
+  # 'Match all' ends any preceding Host block so the Include applies globally.
+  wire "$DOTFILES/ssh_config" "$HOME/.ssh/config" 'Match all
+Include ~/.xt-dotfiles/ssh_config'
   [[ -e $HOME/.ssh/config ]] && run chmod 600 "$HOME/.ssh/config"
   if [[ $OS == Darwin && ! -f $HOME/.ssh/config.d/00-term.conf ]]; then
     run bash -c "printf 'Host *\n  SetEnv TERM=xterm-256color\n' > '$HOME/.ssh/config.d/00-term.conf'"

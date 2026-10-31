@@ -11,4 +11,4 @@ case "$MODE" in
   existing) CMD="$PRE && echo 'alias ll=\"echo OLD\"' > /root/.zshrc && /root/.xt-dotfiles/install.sh --yes --append --no-chsh && exec zsh -l" ;;
   *) echo "usage: $0 [fresh|existing]"; exit 1 ;;
 esac
-docker run --rm -it -v "$DOTFILES:/root/.xt-dotfiles:ro" -e DOTFILES=/root/.xt-dotfiles debian:13 bash -c "$CMD"
+docker run --rm -it -v "$DOTFILES:/root/.xt-dotfiles:ro" -e DOTFILES=/root/.xt-dotfiles -e USER=root debian:13 bash -c "$CMD"
