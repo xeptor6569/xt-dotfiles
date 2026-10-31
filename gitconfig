@@ -1,0 +1,31 @@
+[include]
+	path = ~/.gitconfig.local
+[core]
+	pager = delta
+	autocrlf = input
+[delta]
+	navigate = true
+	side-by-side = true
+	line-numbers = true
+[interactive]
+	diffFilter = delta --color-only
+[merge]
+	conflictstyle = zdiff3
+[diff]
+	colorMoved = default
+[pull]
+	rebase = true
+[push]
+	autoSetupRemote = true
+[fetch]
+	prune = true
+[rebase]
+	autoStash = true
+[init]
+	defaultBranch = main
+[alias]
+	st = status -sb
+	lg = log --oneline --graph --decorate -20
+	undo = reset --soft HEAD~1
+	amend = commit --amend --no-edit
+	wip = !git add -A && git commit -m wip
