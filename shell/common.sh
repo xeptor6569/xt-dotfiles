@@ -20,8 +20,19 @@ _shell="$(basename "${ZSH_NAME:-${BASH:-sh}}")"
 command -v zoxide   >/dev/null && eval "$(zoxide init "$_shell")"
 command -v starship >/dev/null && eval "$(starship init "$_shell")"
 if command -v fzf >/dev/null; then
-  eval "$(fzf --"$_shell" 2>/dev/null)" \
-    || { [[ -f /usr/share/doc/fzf/examples/key-bindings.$_shell ]] && source "/usr/share/doc/fzf/examples/key-bindings.$_shell"; }
+  # fzf >= 0.48 can emit its own integration; older packages (Ubuntu 24.04: 0.44) ship files instead.
+  # Check for output rather than exit status: eval of an empty string succeeds.
+  _fzf_init="$(fzf --"$_shell" 2>/dev/null)"
+  if [[ -n $_fzf_init ]]; then
+    eval "$_fzf_init"
+  else
+    for _d in /usr/share/doc/fzf/examples /usr/share/fzf /usr/share/fzf/shell; do
+      for _f in key-bindings completion; do
+        [[ -f $_d/$_f.$_shell ]] && source "$_d/$_f.$_shell"
+      done
+    done
+  fi
+  unset _fzf_init _d
 fi
 
 for _f in aliases docker functions; do
