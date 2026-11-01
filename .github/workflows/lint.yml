@@ -21,7 +21,7 @@ jobs:
       - run: apt-get update -qq && apt-get install -y -qq sudo git curl ca-certificates >/dev/null
       - uses: actions/checkout@v4
         with: { submodules: true }
-      - run: cp -r . /root/.xt-dotfiles && /root/.xt-dotfiles/install.sh --yes --link --no-chsh
+      - run: cp -r . "$HOME/.xt-dotfiles" && "$HOME/.xt-dotfiles/install.sh" --yes --link --no-chsh
       - run: zsh -i -c 'type ll && type gs'
       - name: fzf key bindings are loaded
         run: zsh -i -c '[[ $(bindkey "^R") == *fzf* ]]'
