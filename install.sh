@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Terminal QoL bootstrap — Debian 13 + macOS. Idempotent; safe on existing systems.
+# Terminal QoL bootstrap — Debian 13, Ubuntu 24.04+ and macOS. Idempotent; safe on existing systems.
 #
 # Usage: install.sh [--yes] [--dry-run] [--append|--link] [--no-packages] [--no-chsh]
 #   --yes          non-interactive, accept defaults
@@ -12,9 +12,19 @@ set -euo pipefail
 
 DOTFILES="${DOTFILES:-$HOME/.xt-dotfiles}"
 OS="$(uname -s)"
+USER="${USER:-$(id -un)}"
+# DISTRO: debian | ubuntu | macos | <other os-release ID>. DISTRO_FAMILY: debian (apt) | macos | unknown.
+DISTRO="" DISTRO_FAMILY=unknown
+if [[ $OS == Darwin ]]; then DISTRO=macos DISTRO_FAMILY=macos
+elif [[ -r /etc/os-release ]]; then
+  # shellcheck disable=SC1091
+  DISTRO="$(. /etc/os-release && echo "${ID:-linux}")"
+  DISTRO_ID_LIKE="$(. /etc/os-release && echo "${ID_LIKE:-}")"
+  case "$DISTRO $DISTRO_ID_LIKE" in *debian*|*ubuntu*) DISTRO_FAMILY=debian;; esac
+fi
 YES=0 DRY=0 PKGS=1 CHSH=1 RCMODE=""
 for a in "$@"; do case "$a" in
-  --yes|-y) YES=1;; --dry-run|-n) DRY=1;; --append) RCMODE=append;; --link) RCMODE=link;;
+  --yes|-y) YES=1;; --dry-run|-n) DRY=1;; --append) RCMODE="append";; --link) RCMODE="link";;
   --no-packages) PKGS=0;; --no-chsh) CHSH=0;;
   -h|--help) sed -n '2,10p' "$0"; exit 0;;
   *) echo "unknown arg: $a"; exit 1;;
@@ -50,7 +60,7 @@ append_line() {  # append_line <file>  [--prepend]
 }
 
 # ---------- Preflight ----------
-log "Host: $(hostname) ($OS)   User: $USER   Shell: $SHELL   Mode: ${RCMODE:-ask}$( ((DRY)) && echo ' DRY-RUN')"
+log "Host: $(hostname) ($OS/${DISTRO:-unknown})   User: $USER   Shell: $SHELL   Mode: ${RCMODE:-ask}$( ((DRY)) && echo ' DRY-RUN')"
 for t in zsh eza bat fd rg fzf zoxide starship tmux btop delta docker; do
   if command -v "$t" >/dev/null; then printf '  ✔ %-9s %s\n' "$t" "$(command -v "$t")"; else printf '  ✘ %-9s\n' "$t"; fi
 done
@@ -64,28 +74,38 @@ echo; ask "Proceed?" y || exit 0
 # ---------- Packages ----------
 DEB_PKGS=(zsh git curl wget unzip tmux htop btop ncdu duf tree jq eza bat fd-find ripgrep fzf
           zoxide git-delta tealdeer fastfetch micro rsync ca-certificates gnupg locales needrestart)
+FZF_VERSION=0.60.3
 BREW_PKGS=(zsh git curl wget tmux htop btop ncdu duf tree jq eza bat fd ripgrep fzf zoxide
            git-delta tlrc fastfetch micro coreutils gnu-sed starship lazygit lazydocker)
 
 if (( PKGS )) && ask "Install/update CLI packages?" y; then
-  case "$OS" in
-    Linux)
+  case "$DISTRO_FAMILY" in
+    debian)
       run sudo apt-get update -qq
       missing=(); for p in "${DEB_PKGS[@]}"; do dpkg -s "$p" &>/dev/null || missing+=("$p"); done
       if (( ${#missing[@]} )); then
         log "Installing: ${missing[*]}"
-        for p in "${missing[@]}"; do run sudo apt-get install -y -qq "$p" 2>/dev/null || warn "skipped $p (not in repo)"; done
+        for p in "${missing[@]}"; do run sudo apt-get install -y -qq "$p" 2>/dev/null || warn "skipped $p (not available on $DISTRO)"; done
       else log "All apt packages present"; fi
       run mkdir -p "$HOME/.local/bin"
       [[ -x /usr/bin/batcat && ! -e $HOME/.local/bin/bat ]] && run ln -sf /usr/bin/batcat "$HOME/.local/bin/bat"
       [[ -x /usr/bin/fdfind && ! -e $HOME/.local/bin/fd  ]] && run ln -sf /usr/bin/fdfind "$HOME/.local/bin/fd"
+      # Ubuntu 24.04 packages fzf 0.44; the shell integration (fzf --zsh/--bash) needs >= 0.48.
+      if command -v fzf >/dev/null && ! PATH="$HOME/.local/bin:$PATH" fzf --bash >/dev/null 2>&1 \
+         && ask "Packaged fzf ($(fzf --version | cut -d' ' -f1)) is too old for shell integration. Install fzf $FZF_VERSION to ~/.local/bin?" y; then
+        case "$(uname -m)" in x86_64) fzf_arch=amd64;; aarch64|arm64) fzf_arch=arm64;; *) fzf_arch="";; esac
+        if [[ -n $fzf_arch ]]; then
+          run bash -c "curl -fsSL 'https://github.com/junegunn/fzf/releases/download/v$FZF_VERSION/fzf-$FZF_VERSION-linux_$fzf_arch.tar.gz' | tar xz -C '$HOME/.local/bin' fzf" \
+            || warn "fzf download failed — key bindings will fall back to distro files if present"
+        else warn "no prebuilt fzf for $(uname -m)"; fi
+      fi
       if ! command -v starship >/dev/null && ask "Install starship prompt?" y; then
         run bash -c 'curl -sS https://starship.rs/install.sh | sh -s -- -y -b "$HOME/.local/bin"'
       fi
       if ! command -v lazydocker >/dev/null && ask "Install lazydocker (docker TUI)?" y; then
         run bash -c 'curl -fsSL https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | DIR="$HOME/.local/bin" bash'
       fi ;;
-    Darwin)
+    macos)
       if ! command -v brew >/dev/null && ask "Install Homebrew?" y; then
         run /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
@@ -94,7 +114,7 @@ if (( PKGS )) && ask "Install/update CLI packages?" y; then
       if (( ${#missing[@]} )); then run brew install "${missing[@]}"; else log "All brew packages present"; fi
       brew list --cask font-jetbrains-mono-nerd-font &>/dev/null \
         || { ask "Install JetBrains Mono Nerd Font?" y && run brew install --cask font-jetbrains-mono-nerd-font; } ;;
-    *) warn "Unsupported OS: $OS — skipping packages" ;;
+    *) warn "Unsupported OS: $OS/${DISTRO:-unknown} (need Debian/Ubuntu or macOS) — skipping packages" ;;
   esac
 fi
 
@@ -123,7 +143,7 @@ wire() {
         "append  (keep your file, add one include line — recommended on existing systems)" \
         "link    (back up your file, replace with dotfiles version)" \
         "skip")
-    else mode=link; fi
+    else mode="link"; fi
   fi
   case "$mode" in
     append) [[ -f $dst ]] || run touch "$dst"

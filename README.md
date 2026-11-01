@@ -1,6 +1,6 @@
 # dotfiles
 
-Standardized terminal setup for Debian 13 hosts and macOS. One repo, one installer,
+Standardized terminal setup for Debian 13, Ubuntu 24.04+ and macOS. One repo, one installer,
 identical shell everywhere (zsh preferred, bash as fallback), idempotent and safe to
 run on machines that already have a config.
 
@@ -18,10 +18,10 @@ curl -fsSL https://raw.githubusercontent.com/xeptor6569/xt-dotfiles/main/bootstr
 curl -fsSL https://raw.githubusercontent.com/xeptor6569/xt-dotfiles/main/bootstrap.sh | bash -s -- --yes --link
 ```
 
-**Brand-new Debian host, as root (user, sudo, ssh hardening, firewall, docker, dotfiles):**
+**Brand-new Debian or Ubuntu host, as root (user, sudo, ssh hardening, firewall, docker, dotfiles):**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/xeptor6569/xt-dotfiles/main/firstboot/debian-firstboot.sh \
+curl -fsSL https://raw.githubusercontent.com/xeptor6569/xt-dotfiles/main/firstboot/linux-firstboot.sh \
 | HOSTNAME_NEW=myhost bash -s -- myuser "ssh-ed25519 AAAA..."
 ```
 
@@ -48,7 +48,18 @@ Then open a new terminal or `exec $SHELL -l`.
 | tmux | `C-a` prefix, mouse, true color, sane splits; `t` opens/attaches session `main` |
 | git | delta pager, `pull.rebase`, `push.autoSetupRemote`, aliases; identity in `~/.gitconfig.local` |
 | ssh | connection multiplexing, keepalives, `~/.ssh/config.d/*` for per-site hosts |
-| Debian firstboot | user+sudo, ssh key-only, ufw, fail2ban, unattended-upgrades, locale, journald cap, Docker CE + log rotation, root gets the same shell |
+| Linux firstboot (Debian/Ubuntu) | user+sudo, ssh key-only, ufw, fail2ban, unattended-upgrades, locale, journald cap, Docker CE + log rotation, root gets the same shell |
+
+## Supported platforms
+
+| OS | Notes |
+|---|---|
+| Debian 13 | Reference platform. |
+| Ubuntu 24.04+ | `fastfetch` isn't packaged before 25.04 (skipped; no SSH login banner). Packaged `fzf` is 0.44, too old for `fzf --zsh/--bash`, so the installer downloads a pinned release (`FZF_VERSION` in `install.sh`) to `~/.local/bin`. Docker uses the Ubuntu repo in firstboot. |
+| macOS | Homebrew. |
+
+The installer reads `/etc/os-release` (`DISTRO`, `DISTRO_FAMILY`) and treats anything Debian-like as apt-based.
+Distro differences stay in small conditionals; there are no per-OS templates.
 
 ## Repository layout
 
@@ -63,8 +74,8 @@ shell/functions.sh    helper functions
 zshrc / bashrc        thin rc files -> source shell/common.sh
 tmux.conf gitconfig ssh_config starship.toml
 plugins/              git submodules (zsh-autosuggestions, zsh-syntax-highlighting)
-firstboot/            debian-firstboot.sh, mac-firstboot.sh
-test/docker-test.sh   run installer in a throwaway Debian container
+firstboot/            linux-firstboot.sh (Debian/Ubuntu; debian-firstboot.sh is a compat wrapper), mac-firstboot.sh
+test/docker-test.sh   run installer in a throwaway Debian/Ubuntu container
 .github/workflows     shellcheck + install smoke test
 ```
 
@@ -144,7 +155,7 @@ needs to be on the machine you type on — i.e. the Mac. The installer offers
 
 ## Root shells
 
-`debian-firstboot.sh` symlinks `/root/.xt-dotfiles` to the user's repo and runs the installer for
+`linux-firstboot.sh` symlinks `/root/.xt-dotfiles` to the user's repo and runs the installer for
 root with `--no-chsh`, so `sudo -i` has the same aliases. Day to day prefer `sudo -s`
 (keeps your env). On an existing host do it manually:
 
@@ -159,11 +170,12 @@ sudo DOTFILES=/root/.xt-dotfiles /root/.xt-dotfiles/install.sh --yes --link --no
 ```sh
 test/docker-test.sh            # fresh Debian 13 container, --link
 test/docker-test.sh existing   # container with a pre-existing .zshrc, --append
+IMAGE=ubuntu:24.04 test/docker-test.sh   # same on Ubuntu
 shellcheck install.sh bootstrap.sh uninstall.sh firstboot/*.sh shell/*.sh
 ~/.xt-dotfiles/install.sh --dry-run
 ```
 
-CI (`.github/workflows/lint.yml`) runs shellcheck and a full install in a `debian:13` container
+CI (`.github/workflows/lint.yml`) runs shellcheck and a full install in `debian:13` and `ubuntu:24.04` containers
 on every push.
 
 ## Maintenance
@@ -191,7 +203,7 @@ recent `.bak`. Packages stay. `chsh -s /bin/bash` if you want bash back.
 
 | Symptom | Fix |
 |---|---|
-| `bat`/`fd` not found on Debian | Installer symlinks `batcat`/`fdfind` into `~/.local/bin`; check it's on `PATH` (`path`) |
+| `bat`/`fd` not found on Debian/Ubuntu | Installer symlinks `batcat`/`fdfind` into `~/.local/bin`; check it's on `PATH` (`path`) |
 | Boxes instead of icons | Terminal font isn't a Nerd Font |
 | `WARNING: terminal is not fully functional` / tmux colors wrong over ssh | `ssh-terminfo host`, or ensure `~/.ssh/config.d/00-term.conf` exists on the Mac |
 | `perl: warning: Setting locale failed` | Host lacks `en_US.UTF-8`; firstboot runs `locale-gen`. Manually: `sudo dpkg-reconfigure locales` |
@@ -203,4 +215,4 @@ recent `.bak`. Packages stay. `chsh -s /bin/bash` if you want bash back.
 ## When to outgrow this
 
 - **Per-host templating, secrets, many OS variants** → [chezmoi](https://www.chezmoi.io) (same layout, adds templates/encryption/`chezmoi update`).
-- **Fleet config that must be re-applied** (users, sshd, firewall, docker daemon) → convert `firstboot/debian-firstboot.sh` to an Ansible playbook; it's already structured as idempotent tasks.
+- **Fleet config that must be re-applied** (users, sshd, firewall, docker daemon) → convert `firstboot/linux-firstboot.sh` to an Ansible playbook; it's already structured as idempotent tasks.
