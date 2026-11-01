@@ -8,6 +8,7 @@ declare -A PATTERN=(
   ["$HOME/.tmux.conf"]='xt-dotfiles/tmux.conf'
   ["$HOME/.gitconfig"]='xt-dotfiles/gitconfig'
   ["$HOME/.ssh/config"]='xt-dotfiles/ssh_config'
+  ["$HOME/.config/ghostty/config"]='xt-dotfiles/ghostty/config'
 )
 for rc in "${!PATTERN[@]}"; do
   if [[ -L $rc && $(readlink "$rc") == "$DOTFILES/"* ]]; then

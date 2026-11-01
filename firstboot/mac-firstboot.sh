@@ -5,7 +5,7 @@ xcode-select --install 2>/dev/null || true
 command -v brew >/dev/null || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
 
-brew install --cask iterm2 docker rectangle raycast visual-studio-code font-jetbrains-mono-nerd-font || true
+brew install --cask ghostty docker rectangle raycast visual-studio-code font-jetbrains-mono-nerd-font || true
 
 # sane defaults
 defaults write NSGlobalDomain KeyRepeat -int 2
@@ -18,4 +18,4 @@ killall Finder Dock 2>/dev/null || true
 
 [[ -d ~/.xt-dotfiles ]] || git clone --recurse-submodules "$REPO" ~/.xt-dotfiles
 ~/.xt-dotfiles/install.sh --append
-echo "Set your terminal font to 'JetBrainsMono Nerd Font' for icons."
+echo "Ghostty config wired to ~/.config/ghostty/config (font: JetBrainsMono Nerd Font)."

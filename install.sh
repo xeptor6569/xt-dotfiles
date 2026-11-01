@@ -203,6 +203,13 @@ Include ~/.xt-dotfiles/ssh_config'
   fi
 fi
 
+if [[ $OS == Darwin ]] && { command -v ghostty >/dev/null || [[ -d /Applications/Ghostty.app ]] || [[ -d $HOME/.config/ghostty ]]; } \
+   && ask "Configure Ghostty?" y; then
+  run mkdir -p "$HOME/.config/ghostty"
+  # '?' makes the include optional (no error if the repo is removed)
+  wire "$DOTFILES/ghostty/config" "$HOME/.config/ghostty/config" "config-file = ?$DOTFILES/ghostty/config"
+fi
+
 # ---------- Extras ----------
 run mkdir -p "$HOME/.config" "$HOME/.cache"
 if [[ ! -f $HOME/.config/starship.toml ]] && ask "Install starship.toml?" y; then

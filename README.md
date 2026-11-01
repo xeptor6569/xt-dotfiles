@@ -45,7 +45,8 @@ Then open a new terminal or `exec $SHELL -l`.
 | Prompt | [starship](https://starship.rs) — identical on every host, shows git/docker/duration |
 | CLI replacements | `eza` (ls), `bat` (cat), `fd` (find), `ripgrep` (grep), `duf` (df), `btop` (top), `zoxide` (cd), `fzf`, `tldr`, `delta` (git diff), `ncdu`, `jq`, `fastfetch` |
 | Aliases | general (`shell/aliases.sh`), docker/compose (`shell/docker.sh`), helpers (`shell/functions.sh`) |
-| tmux | `C-a` prefix, mouse, true color, sane splits; `t` opens/attaches session `main` |
+| Terminal | [Ghostty](https://ghostty.org) (macOS) — `ghostty/config`: Nerd Font, light/dark theme, Option-as-Alt, ssh terminfo integration, native splits |
+| tmux | `C-a` prefix, mouse, true color (incl. `xterm-ghostty`), OSC52 clipboard, focus events; `t` opens/attaches session `main` |
 | git | delta pager, `pull.rebase`, `push.autoSetupRemote`, aliases; identity in `~/.gitconfig.local` |
 | ssh | connection multiplexing, keepalives, `~/.ssh/config.d/*` for per-site hosts |
 | Linux firstboot (Debian/Ubuntu) | user+sudo, ssh key-only, ufw, fail2ban, unattended-upgrades, locale, journald cap, Docker CE + log rotation, root gets the same shell |
@@ -73,6 +74,7 @@ shell/docker.sh       docker + compose aliases/functions
 shell/functions.sh    helper functions
 zshrc / bashrc        thin rc files -> source shell/common.sh
 tmux.conf gitconfig ssh_config starship.toml
+ghostty/config        Ghostty terminal config (macOS), included from ~/.config/ghostty/config
 plugins/              git submodules (zsh-autosuggestions, zsh-syntax-highlighting)
 firstboot/            linux-firstboot.sh (Debian/Ubuntu; debian-firstboot.sh is a compat wrapper), mac-firstboot.sh
 test/docker-test.sh   run installer in a throwaway Debian/Ubuntu container
@@ -151,7 +153,8 @@ Once a day, in the background, the shell checks whether the repo is behind origi
 
 Icons (`eza --icons`, starship glyphs) are rendered by **your terminal**, so the Nerd Font only
 needs to be on the machine you type on — i.e. the Mac. The installer offers
-`font-jetbrains-mono-nerd-font`; set it as the terminal font. Servers need nothing.
+`font-jetbrains-mono-nerd-font`; the Ghostty config already selects it (Ghostty also bundles
+Nerd Font symbol fallback). Servers need nothing.
 
 ## Root shells
 
@@ -205,6 +208,9 @@ recent `.bak`. Packages stay. `chsh -s /bin/bash` if you want bash back.
 |---|---|
 | `bat`/`fd` not found on Debian/Ubuntu | Installer symlinks `batcat`/`fdfind` into `~/.local/bin`; check it's on `PATH` (`path`) |
 | Boxes instead of icons | Terminal font isn't a Nerd Font |
+| Alt-C / Alt-b/f don't work in Ghostty | `macos-option-as-alt = true` (set in `ghostty/config`); reload config with Cmd-Shift-, |
+| Ghostty config errors | `ghostty +validate-config` |
+| Remote host: `unknown terminal type xterm-ghostty` | Ghostty's `ssh-terminfo` feature handles it; else `ssh-terminfo host` |
 | `WARNING: terminal is not fully functional` / tmux colors wrong over ssh | `ssh-terminfo host`, or ensure `~/.ssh/config.d/00-term.conf` exists on the Mac |
 | `perl: warning: Setting locale failed` | Host lacks `en_US.UTF-8`; firstboot runs `locale-gen`. Manually: `sudo dpkg-reconfigure locales` |
 | Slow shell start | `shellbench`; move nvm/pyenv/conda init into `~/.aliases.local` and lazy-load |
